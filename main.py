@@ -7,9 +7,10 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive']
 
 
 def main():
@@ -37,17 +38,72 @@ def main():
     try:
         service = build('drive', 'v3', credentials=creds)
 
-        # Call the Drive v3 API
-        results = service.files().list(
-            pageSize=10, fields="nextPageToken, files(id, name)").execute()
-        items = results.get('files', [])
+        # get the folder from local storage to sync
+        folder = input("Enter the folder path to sync: ")
+        folder = folder.replace('\\', '/')
 
-        if not items:
-            print('No files found.')
-            return
-        print('Files:')
-        for item in items:
-            print(u'{0} ({1})'.format(item['name'], item['id']))
+        # select the folder in google drive
+        folder_id = input("Enter the folder ID in Google Drive: ")
+        
+        print("Syncing folder: " + folder)
+        print("Folder ID: " + folder_id)
+
+        # get the list of files in the folder
+        drive_files = []
+        local_files = []
+
+        page_token = None
+        while True:
+            response = service.files().list(q="'" + folder_id + "' in parents",
+                                            spaces='drive',
+                                            fields='nextPageToken, files(id, name)',
+                                            pageToken=page_token).execute()
+            for file in response.get('files', []):
+                # Process change
+                drive_files.append(file.get('name'))
+            page_token = response.get('nextPageToken', None)
+            if page_token is None:
+                break
+
+        # get the list of files in the local folder
+        for file in os.listdir(folder):
+            local_files.append(file)
+
+        # compare the lists
+        # files to be uploaded
+        upload_files = []
+        for file in local_files:
+            if file not in drive_files:
+                upload_files.append(file)
+
+        # files to be downloaded
+        download_files = []
+        for file in drive_files:
+            if file not in local_files:
+                download_files.append(file)
+
+        # display the files to be uploaded
+        print("Files to be uploaded:")
+        for file in upload_files:
+            print(file)
+
+        # display the files to be downloaded
+        print("Files to be downloaded:")
+        for file in download_files:
+            print(file)
+
+        # upload the files
+        for file in upload_files:
+            file_metadata = {
+                'name': file,
+                'parents': [folder_id]
+            }
+            media = MediaFileUpload(folder + "/" + file)
+            file = service.files().create(body=file_metadata,
+                                            media_body=media,
+                                            fields='id').execute()
+            print('uploaded File ID: %s' % file.get('id'))
+
     except HttpError as error:
         # TODO(developer) - Handle errors from drive API.
         print(f'An error occurred: {error}')
