@@ -1,2 +1,4 @@
 token.json
 test
+utility/__pycache__
+*.log
