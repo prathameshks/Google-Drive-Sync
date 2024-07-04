@@ -2,14 +2,14 @@ from utility.google_connection import get_service
 import os
 
 
-def get_drive_file_list(root_folder_id : str) -> dict[str, list[str]]:
+def get_drive_file_list(root_folder_id : str) -> dict[str, set[str]]:
     """Retrieves a list of files and folders from Google Drive.
 
     Args:
         root_folder_id (str): The ID of the folder to list files in.
 
     Returns:
-        dict: A dictionary containing the relative path as key and a list of files at the path as value.
+        dict: A dictionary containing the relative path as key and a set of files at the path as value.
     """
     
     service = get_service()
@@ -30,15 +30,15 @@ def get_drive_file_list(root_folder_id : str) -> dict[str, list[str]]:
             .execute()
         )
         items = results.get("files", [])
-        item_list = []
+        item_set = set()
         for item in items:
             if item["mimeType"] == "application/vnd.google-apps.folder":
                 sub_path = os.path.join(path, item["name"])
                 _get_files_in_folder(item["id"], sub_path)
             else:
-                item_list.append(item["name"])
+                item_set.add(item["name"])
 
-        files_and_folders[path] = item_list 
+        files_and_folders[path] = item_set 
 
     # Get the root folder (change 'root' to a specific folder ID if needed)
     results = (
@@ -47,14 +47,14 @@ def get_drive_file_list(root_folder_id : str) -> dict[str, list[str]]:
         .execute()
     )
     items = results.get("files", [])
-    item_list = []
+    item_set = set()
     for item in items:
         if item["mimeType"] == "application/vnd.google-apps.folder":
             _get_files_in_folder(item["id"], item["name"])
         else:
-            item_list.append(item["name"])
+            item_set.add(item["name"])
 
-    files_and_folders['.'] = item_list
+    files_and_folders['.'] = item_set
 
     return files_and_folders
 
